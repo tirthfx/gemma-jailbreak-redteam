@@ -1,0 +1,23 @@
+# Core
+torch>=2.4.0
+transformers>=4.46.0
+accelerate>=1.0.0
+huggingface_hub>=0.25.0
+hf_xet>=1.0.0  # high-performance transfer backend — see src/model.py for why this matters on this network
+safetensors>=0.4.0
+
+# Data / analysis
+datasets>=2.20.0
+pandas>=2.2.0
+matplotlib>=3.9.0
+numpy>=1.26.0
+
+# Multimodal (Phase H)
+Pillow>=10.4.0
+
+# Demo (Phase J)
+streamlit>=1.38.0
+
+# Dev
+tqdm>=4.66.0
+python-dotenv>=1.0.0
