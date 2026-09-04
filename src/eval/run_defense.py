@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from src.attacks.whitebox.ablate import ablated
 from src.attacks.whitebox.refusal_direction import DIRECTION_PATH, load_direction
 from src.benchmark.judge import attack_success_rate, judge_response
 from src.benchmark.prompts import BENIGN_PROMPTS, load_benchmark
@@ -68,36 +69,48 @@ def run_perplexity_defense(model, tokenizer, device) -> dict:
              "n_gcg": len(rows)}
 
 
-def run_refusion_defense(model, tokenizer, device, strength: float) -> dict:
+def run_refusion_defense(model, tokenizer, device, ablation_alpha: float, strength: float,
+                          limit: int | None) -> dict:
+    """
+    Defends an *ablated* model (attack: ablation_alpha) by adding the refusal
+    direction back in on top (defense: strength) — nesting ablated() and
+    refused() together, since the whole point of this defense is to patch a
+    model that's already had refusal suppressed, not to test refusal-steering
+    on an untouched model (an earlier version of this function did the latter
+    by mistake — refused() alone, with no ablated() underneath it).
+    """
     if not DIRECTION_PATH.exists():
         print(f"[defense] {DIRECTION_PATH} not found — run eval/run_ablation.py first. Skipping refusion defense.")
         return {}
 
     direction, layer_idx = load_direction()
     prompts = load_benchmark()
+    if limit:
+        prompts = prompts[:limit]
 
     verdicts = []
-    with refused(model, direction, strength=strength):
+    with ablated(model, direction, alpha=ablation_alpha), refused(model, direction, strength=strength):
         for p in prompts:
             response = generate(model, tokenizer, p.text, max_new_tokens=256, device=device)
             verdicts.append(judge_response(response))
         cap_result = run_capability_check(
             respond_fn=lambda p: generate(model, tokenizer, p, max_new_tokens=64, device=device),
-            label=f"refused_strength{strength}",
+            label=f"ablated_alpha{ablation_alpha}_refused_strength{strength}",
         )
 
     asr = attack_success_rate(verdicts)
-    print(f"[defense] refusal re-fusion (strength={strength}): ASR on ablated+guardrailed model = {asr:.1%}, "
+    print(f"[defense] refusal re-fusion (ablation_alpha={ablation_alpha}, strength={strength}): "
+          f"ASR on ablated+guardrailed model = {asr:.1%}, "
           f"QA accuracy = {cap_result['qa_accuracy']:.1%}, benign refusal rate = {cap_result['benign_refusal_rate']:.1%}")
-    return {"strength": strength, "asr": asr, "qa_accuracy": cap_result["qa_accuracy"],
-            "benign_refusal_rate": cap_result["benign_refusal_rate"]}
+    return {"ablation_alpha": ablation_alpha, "strength": strength, "asr": asr,
+            "qa_accuracy": cap_result["qa_accuracy"], "benign_refusal_rate": cap_result["benign_refusal_rate"]}
 
 
-def run(refusion_strength: float) -> None:
+def run(refusion_strength: float, ablation_alpha: float, limit: int | None) -> None:
     model, tokenizer, processor, device = load_model()
 
     ppl_result = run_perplexity_defense(model, tokenizer, device)
-    refusion_result = run_refusion_defense(model, tokenizer, device, refusion_strength)
+    refusion_result = run_refusion_defense(model, tokenizer, device, ablation_alpha, refusion_strength, limit)
 
     with SUMMARY_PATH.open("w", newline="") as f:
         writer = csv.writer(f)
@@ -112,5 +125,10 @@ def run(refusion_strength: float) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--refusion-strength", type=float, default=1.0)
+    ap.add_argument("--ablation-alpha", type=float, default=1.0,
+                     help="Ablation strength to defend against — should match whichever alpha "
+                          "the Phase E sweep found to actually produce a coherent jailbroken "
+                          "model, not necessarily 1.0.")
+    ap.add_argument("--limit", type=int, default=20)
     args = ap.parse_args()
-    run(refusion_strength=args.refusion_strength)
+    run(refusion_strength=args.refusion_strength, ablation_alpha=args.ablation_alpha, limit=args.limit)
