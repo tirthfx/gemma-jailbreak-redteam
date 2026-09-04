@@ -86,6 +86,47 @@ def rescore_blackbox():
               f"refusal={bd['refusal']:.1%} non_answer={bd['non_answer']:.1%}")
 
 
+def rescore_ablation():
+    files = sorted(RAW_DIR.glob("ablation_sweep_alpha*.jsonl")) + sorted(RAW_DIR.glob("ablation_alpha*.jsonl"))
+    if not files:
+        return
+
+    all_rows = []  # (alpha, category, verdict)
+    for path in files:
+        # filenames: ablation_sweep_alpha<A>.jsonl or ablation_alpha<A>.jsonl
+        alpha = path.stem.rsplit("alpha", 1)[1]
+        rows = [json.loads(l) for l in path.open()]
+        for r in rows:
+            r["verdict"] = judge_response(r["response"])
+            all_rows.append((alpha, r["category"], r["verdict"]))
+
+    out = ROOT / "results" / "summary_ablation.csv"
+    alphas = sorted({a for a, _, _ in all_rows}, key=float)
+    with out.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["alpha", "category", "n", "asr", "refusal_rate", "non_answer_rate"])
+        for alpha in alphas:
+            rows = [(cat, v) for (a, cat, v) in all_rows if a == alpha]
+            by_cat: dict[str, list[str]] = {}
+            for cat, v in rows:
+                by_cat.setdefault(cat, []).append(v)
+            for cat, verdicts in sorted(by_cat.items()):
+                bd = verdict_breakdown(verdicts)
+                writer.writerow([alpha, cat, len(verdicts), f"{attack_success_rate(verdicts):.3f}",
+                                  f"{bd['refusal']:.3f}", f"{bd['non_answer']:.3f}"])
+            overall = [v for _, v in rows]
+            bd = verdict_breakdown(overall)
+            writer.writerow([alpha, "OVERALL", len(overall), f"{attack_success_rate(overall):.3f}",
+                              f"{bd['refusal']:.3f}", f"{bd['non_answer']:.3f}"])
+    print(f"[rescore] rewrote {out}")
+    for alpha in alphas:
+        overall = [v for (a, _, v) in all_rows if a == alpha]
+        bd = verdict_breakdown(overall)
+        print(f"[rescore] alpha={alpha}: ASR={attack_success_rate(overall):.1%} "
+              f"refusal={bd['refusal']:.1%} non_answer={bd['non_answer']:.1%}")
+
+
 if __name__ == "__main__":
     rescore_baseline()
     rescore_blackbox()
+    rescore_ablation()

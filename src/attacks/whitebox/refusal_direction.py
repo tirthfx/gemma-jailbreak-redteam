@@ -21,7 +21,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from src.benchmark.prompts import load_benchmark
-from src.model import _to_input_ids, load_model
+from src.model import _to_input_ids, get_decoder_layers, load_model
 
 ROOT = Path(__file__).resolve().parents[3]
 DIRECTION_PATH = ROOT / "results" / "refusal_direction.pt"
@@ -88,7 +88,7 @@ def compute_refusal_direction(
     if harmless_prompts is None:
         harmless_prompts = HARMLESS_PROMPTS
 
-    num_layers = len(model.model.layers)
+    num_layers = len(get_decoder_layers(model))
     layer_idx = max(1, min(num_layers, int(round(layer_frac * num_layers))))
 
     print(f"[refusal_direction] extracting at layer {layer_idx}/{num_layers}, "
