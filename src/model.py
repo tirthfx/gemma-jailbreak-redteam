@@ -69,7 +69,28 @@ def load_model(model_id: str = MODEL_ID, dtype: torch.dtype = torch.bfloat16):
     ).to(device)
     model.eval()
 
+    # Freeze every parameter. Nothing in this project trains the model — even
+    # GCG (Phase F) only needs a gradient w.r.t. a one-hot *input* tensor, not
+    # the model's own weights. Without this, autograd allocates and retains a
+    # gradient buffer for all 4B parameters on every backward() call, which is
+    # what caused an MPS OOM during the first GCG smoke test (18GB+ allocated
+    # for parameter grads that were never actually used).
+    for p in model.parameters():
+        p.requires_grad_(False)
+
     return model, tokenizer, processor, device
+
+
+def get_decoder_layers(model):
+    """
+    Gemma-3's multimodal wrapper nests the actual text decoder layers as
+    model.model.language_model.layers (Gemma3ForConditionalGeneration ->
+    Gemma3Model [vision_tower, multi_modal_projector, language_model] ->
+    Gemma3TextModel.layers) — NOT model.model.layers, which only holds true for
+    a plain (non-multimodal) causal LM. Centralized here so every white-box
+    module (ablate.py, refusal_direction.py) agrees on this path in one place.
+    """
+    return model.model.language_model.layers
 
 
 def _to_input_ids(templated) -> torch.Tensor:

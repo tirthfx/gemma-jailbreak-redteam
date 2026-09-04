@@ -15,9 +15,14 @@ two features share this one implementation instead of duplicating it.
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
+from pathlib import Path
 
 import torch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from src.model import get_decoder_layers
 
 
 def _ablation_hook(direction: torch.Tensor, alpha: float):
@@ -55,7 +60,7 @@ def ablated(model, direction: torch.Tensor, alpha: float = 1.0):
     """
     handles = []
     try:
-        for layer in model.model.layers:
+        for layer in get_decoder_layers(model):
             handles.append(layer.register_forward_hook(_ablation_hook(direction, alpha)))
         yield model
     finally:
