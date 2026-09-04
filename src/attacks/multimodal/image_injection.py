@@ -75,7 +75,12 @@ def _generate_with_image(model, tokenizer, processor, image: Image.Image, captio
     inputs = processor.apply_chat_template(
         messages, add_generation_prompt=True, tokenize=True,
         return_dict=True, return_tensors="pt",
-    ).to(device)
+    )
+    # BatchFeature.to() only casts floating-point tensors (pixel_values) to `dtype`
+    # and leaves integer tensors (input_ids, attention_mask) untouched — passing
+    # dtype here matters because pixel_values otherwise stays float32 while the
+    # model is bfloat16, which errors inside the vision tower's first matmul.
+    inputs = inputs.to(device=device, dtype=model.dtype)
 
     import torch
     with torch.no_grad():
