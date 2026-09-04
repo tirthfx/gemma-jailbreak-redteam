@@ -14,12 +14,17 @@ from __future__ import annotations
 
 import os
 
-# Must be set before huggingface_hub is imported (by transformers below). This
-# network has very high latency and the default single-connection download path
-# measured ~40 bytes/s to HF's CDN; the Xet high-performance transfer path measured
-# ~1.4MB/s in testing (see docs/ notes) — the difference between an ~unusable
-# download and one that finishes in under two hours.
-os.environ.setdefault("HF_XET_HIGH_PERFORMANCE", "1")
+# Must be set before huggingface_hub is imported (by transformers below).
+#
+# Tried Xet high-performance transfer first (HF_XET_HIGH_PERFORMANCE=1): fast on a
+# small test file (~1.4MB/s vs. ~40 bytes/s plain HTTP at that moment), but on the
+# real ~8GB model shard it ran for 90 minutes and then failed with a CAS
+# reconstruction error, leaving zero resumable progress on disk. Plain HTTP
+# download is slower per-attempt (~560KB/s measured) but resumes properly via
+# range requests when interrupted, which matters far more than raw throughput on
+# this network. See scripts/download_model.sh for the retry wrapper used to
+# actually pull the weights.
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 import torch
 from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
