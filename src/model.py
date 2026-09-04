@@ -64,12 +64,23 @@ def load_model(model_id: str = MODEL_ID, dtype: torch.dtype = torch.bfloat16):
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=dtype,
+        dtype=dtype,
         low_cpu_mem_usage=True,
     ).to(device)
     model.eval()
 
     return model, tokenizer, processor, device
+
+
+def _to_input_ids(templated) -> torch.Tensor:
+    """
+    Newer `transformers` versions have `apply_chat_template(..., return_tensors="pt")`
+    return a BatchEncoding (dict-like, with an "input_ids" key) rather than a bare
+    tensor — this normalizes either shape to a plain input_ids tensor.
+    """
+    if torch.is_tensor(templated):
+        return templated
+    return templated["input_ids"]
 
 
 def _safe_apply_template(tokenizer, messages: list[dict], **kwargs):
@@ -107,9 +118,10 @@ def chat(
     if device is None:
         device = next(model.parameters()).device
 
-    inputs = _safe_apply_template(
+    templated = _safe_apply_template(
         tokenizer, messages, add_generation_prompt=True, return_tensors="pt"
-    ).to(device)
+    )
+    inputs = _to_input_ids(templated).to(device)
 
     with torch.no_grad():
         output_ids = model.generate(
