@@ -1,0 +1,153 @@
+"""
+Aggregates every results/summary_*.csv into a single markdown report and a set
+of charts. Run any time — it only reads what's already been produced, so it's
+safe to run partway through the project (before Phases E-J exist yet) and
+re-run later as more results land.
+
+Usage:
+    python -m src.eval.report
+
+Outputs:
+    results/REPORT.md
+    results/charts/*.png
+"""
+
+from __future__ import annotations
+
+import csv
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+ROOT = Path(__file__).resolve().parents[2]
+RESULTS = ROOT / "results"
+CHARTS = RESULTS / "charts"
+
+
+def read_csv(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open() as f:
+        return list(csv.DictReader(f))
+
+
+def section_baseline(md: list[str]):
+    rows = read_csv(RESULTS / "summary_baseline.csv")
+    if not rows:
+        return
+    md.append("## Phase A — Baseline\n")
+    md.append("| category | n | asr | refusal_rate | non_answer_rate |")
+    md.append("|---|---|---|---|---|")
+    for r in rows:
+        md.append(f"| {r['category']} | {r['n']} | {r['asr']} | {r.get('refusal_rate','')} | {r.get('non_answer_rate','')} |")
+    md.append("")
+
+
+def section_blackbox(md: list[str]):
+    rows = read_csv(RESULTS / "summary_blackbox.csv")
+    if not rows:
+        return
+    md.append("## Phase B — Black-box prompt jailbreaks\n")
+    overall = [r for r in rows if r["category"] == "OVERALL"]
+    md.append("| technique | n | asr | refusal_rate | non_answer_rate |")
+    md.append("|---|---|---|---|---|")
+    for r in overall:
+        md.append(f"| {r['technique']} | {r['n']} | {r['asr']} | {r.get('refusal_rate','')} | {r.get('non_answer_rate','')} |")
+    md.append("")
+
+    try:
+        import matplotlib.pyplot as plt
+        techniques = [r["technique"] for r in overall]
+        asrs = [float(r["asr"]) for r in overall]
+        CHARTS.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.bar(techniques, asrs, color="#4C72B0")
+        ax.set_ylabel("Attack Success Rate")
+        ax.set_title("Phase B: ASR by technique")
+        ax.set_ylim(0, 1)
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        fig.savefig(CHARTS / "blackbox_asr.png", dpi=150)
+        plt.close(fig)
+        md.append("![Phase B ASR by technique](charts/blackbox_asr.png)\n")
+    except Exception as e:
+        md.append(f"_(chart generation skipped: {e})_\n")
+
+
+def section_ablation(md: list[str]):
+    rows = read_csv(RESULTS / "summary_ablation.csv")
+    if not rows:
+        return
+    md.append("## Phase C/E — Refusal-direction ablation\n")
+    overall = [r for r in rows if r["category"] == "OVERALL"]
+    md.append("| alpha | n | asr | refusal_rate | non_answer_rate |")
+    md.append("|---|---|---|---|---|")
+    for r in overall:
+        md.append(f"| {r['alpha']} | {r['n']} | {r['asr']} | {r.get('refusal_rate','')} | {r.get('non_answer_rate','')} |")
+    md.append("")
+
+    cap_rows = read_csv(RESULTS / "summary_capability.csv")
+    cap_by_label = {r["label"]: r for r in cap_rows}
+
+    try:
+        import matplotlib.pyplot as plt
+        alphas = [float(r["alpha"]) for r in overall]
+        asrs = [float(r["asr"]) for r in overall]
+        qa = [float(cap_by_label[f"ablated_alpha{r['alpha']}"]["qa_accuracy"])
+              if f"ablated_alpha{r['alpha']}" in cap_by_label else None for r in overall]
+
+        CHARTS.mkdir(parents=True, exist_ok=True)
+        fig, ax1 = plt.subplots(figsize=(7, 4))
+        ax1.plot(alphas, asrs, "o-", color="#C44E52", label="ASR (harmful benchmark)")
+        ax1.set_xlabel("Ablation strength (alpha)")
+        ax1.set_ylabel("Attack Success Rate", color="#C44E52")
+        ax1.set_ylim(0, 1)
+        if any(q is not None for q in qa):
+            ax2 = ax1.twinx()
+            ax2.plot(alphas, [q if q is not None else float("nan") for q in qa],
+                     "s--", color="#4C72B0", label="Capability (QA accuracy)")
+            ax2.set_ylabel("QA accuracy", color="#4C72B0")
+            ax2.set_ylim(0, 1)
+        ax1.set_title("Phase E: ablation strength vs. ASR / capability")
+        plt.tight_layout()
+        fig.savefig(CHARTS / "ablation_sweep.png", dpi=150)
+        plt.close(fig)
+        md.append("![Ablation strength sweep](charts/ablation_sweep.png)\n")
+    except Exception as e:
+        md.append(f"_(chart generation skipped: {e})_\n")
+
+
+def section_simple(md: list[str], title: str, csv_name: str, columns: list[str]):
+    rows = read_csv(RESULTS / csv_name)
+    if not rows:
+        return
+    md.append(f"## {title}\n")
+    md.append("| " + " | ".join(columns) + " |")
+    md.append("|" + "---|" * len(columns))
+    for r in rows:
+        md.append("| " + " | ".join(str(r.get(c, "")) for c in columns) + " |")
+    md.append("")
+
+
+def build_report() -> Path:
+    md: list[str] = ["# Gemma-3-4B Red-Teaming — Results Report\n",
+                      "_Generated by `src/eval/report.py`. Aggregate numbers only — "
+                      "see `results/raw/` (local, gitignored) for full transcripts._\n"]
+
+    section_baseline(md)
+    section_blackbox(md)
+    section_ablation(md)
+    section_simple(md, "Phase F — GCG adversarial suffixes", "summary_gcg.csv", ["stage", "n", "asr"])
+    section_simple(md, "Phase G — Self-play automated search", "summary_selfplay.csv", ["stage", "n", "asr"])
+    section_simple(md, "Phase H — Multimodal (image) injection", "summary_multimodal.csv", ["channel", "n", "asr"])
+    section_simple(md, "Phase I — Defenses", "summary_defense.csv", ["defense", "metric", "value"])
+
+    out = RESULTS / "REPORT.md"
+    out.write_text("\n".join(md))
+    return out
+
+
+if __name__ == "__main__":
+    out = build_report()
+    print(f"[report] wrote {out}")
