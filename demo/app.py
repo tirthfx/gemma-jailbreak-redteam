@@ -85,16 +85,16 @@ def main():
                 st.subheader(variant)
                 with st.spinner("Generating..."):
                     if variant == "Baseline (no attack)":
-                        response = generate(model, tokenizer, prompt, max_new_tokens=200, device=device)
+                        response = generate(model, tokenizer, prompt, max_new_tokens=450, device=device)
                     elif variant == "Roleplay attack":
-                        response = roleplay.run(model, tokenizer, device, prompt, max_new_tokens=200)
+                        response = roleplay.run(model, tokenizer, device, prompt, max_new_tokens=450)
                     elif variant == "Ablated (refusal removed)":
                         with ablated(model, direction, alpha=ABLATION_ALPHA):
-                            response = generate(model, tokenizer, prompt, max_new_tokens=200, device=device)
+                            response = generate(model, tokenizer, prompt, max_new_tokens=450, device=device)
                     elif variant == "Ablated + guardrail (defended)":
                         with ablated(model, direction, alpha=ABLATION_ALPHA), \
                              refused(model, direction, strength=ABLATION_ALPHA):
-                            response = generate(model, tokenizer, prompt, max_new_tokens=200, device=device)
+                            response = generate(model, tokenizer, prompt, max_new_tokens=450, device=device)
                     else:
                         response = "(unknown variant)"
 
