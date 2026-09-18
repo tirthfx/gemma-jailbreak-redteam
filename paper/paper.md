@@ -372,6 +372,15 @@ strongest attack found (refusal-direction ablation at alpha=0.05) is published
 alongside its fully effective defense (Section 5.2, same calibrated scale),
 consistent with this project's attack-and-defense framing throughout.
 
+**Released artifact.** After the experiments above, a refusal-ablated build of
+the model (full-projection weight orthogonalization, alpha = 1.0, F16 GGUF) was
+published on Hugging Face as a research artifact, with a model card documenting
+its intended use, limitations and the Gemma license terms
+(`tirthfx/gemma-3-4b-it-ablated-GGUF`). This is a different operation from the
+runtime-hook ablation studied in Section 4.5, and the refusal re-fusion defense
+of Section 5.2 was **not** verified against it. For that reason the standalone
+script that produces these weights is not part of this repository.
+
 ## References
 
 - Ganguli et al., "Red Teaming Language Models to Reduce Harms" (2022)
