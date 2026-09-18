@@ -33,6 +33,25 @@ countermeasures for the two most surgical attacks. It's deliberately scoped as
 The full per-category, per-technique breakdown is in
 [`results/REPORT.md`](results/REPORT.md), with charts in `results/charts/`.
 
+## Released model
+
+A refusal-ablated build of Gemma-3-4B-it is published on Hugging Face as a research artifact:
+**[tirthfx/gemma-3-4b-it-ablated-GGUF](https://huggingface.co/tirthfx/gemma-3-4b-it-ablated-GGUF)**
+(F16 GGUF, text-only; model card also in [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md)).
+
+It uses full-projection weight orthogonalization (alpha = 1.0, baked into the weights), which is a
+different operation from the runtime-hook ablation measured in the paper (alpha = 0.05). On the
+20-prompt ablation subset it reached 100% ASR against 15% for the original, with QA accuracy and
+benign-refusal rate unchanged on the project's small capability battery. The GGUF itself was not
+re-evaluated after conversion.
+
+Two limits to be aware of:
+
+- The refusal-refusion defense was only verified against the hook-based ablation, not this
+  full-projection variant.
+- The standalone script that produces the baked weights is **intentionally not published** in this
+  repo, for that reason (see `.gitignore`).
+
 ## All phases
 
 - ✅ **Phase A — Baseline & benchmark.** 46 self-authored harmful-request prompts

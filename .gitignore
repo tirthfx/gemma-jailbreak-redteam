@@ -19,3 +19,13 @@ results/**/*.jsonl
 # HF token / secrets
 .env
 *.token
+
+# Kept local-only deliberately: a complete, standalone "fully uncensor Gemma
+# with zero capability loss" script, verified at 100% ASR. Everything else in
+# this repo needs the project's own runtime + a context manager to use; this
+# doesn't, and our defense (refusal_refusion) was only ever verified against
+# the hook-based ablation, not this full-projection technique -- publishing it
+# without a matching, verified defense would break the repo's attack+defense
+# framing. See conversation/commit history for the reasoning.
+scripts/bake_ablation.py
+scripts/verify_baked.py
