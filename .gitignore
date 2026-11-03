@@ -10,6 +10,10 @@ models/
 *.bin
 *.gguf
 
+# Extracted refusal-direction vectors: deliberately not published (see README,
+# "Refusal-direction vector"). Regenerate locally with src/attacks/whitebox/refusal_direction.py.
+results/*.pt
+
 # Raw experiment logs — may contain full harmful completions, never commit these
 results/raw/
 results/**/*.jsonl

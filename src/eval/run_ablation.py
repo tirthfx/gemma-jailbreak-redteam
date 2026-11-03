@@ -9,7 +9,7 @@ Usage:
     python -m src.eval.run_ablation [--alpha 1.0] [--limit N] [--max-new-tokens N]
 
 Outputs:
-    results/refusal_direction.pt              - the extracted direction (committed; tiny)
+    results/refusal_direction.pt              - the extracted direction (local only, gitignored)
     results/raw/ablation_alpha<A>.jsonl        - full transcripts (local only)
     results/summary_ablation.csv               - ASR per category, appended per alpha
     results/summary_capability.csv             - appended with label "ablated_alpha<A>"
